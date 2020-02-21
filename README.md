@@ -1,1 +1,3 @@
-# seasonal_forcast_predictability
+# predictability of seasonal forecasts
+
+WIP
