@@ -18,7 +18,7 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
     # fit CCA-based model
     lrlm = LR_lin_method(n_latents=n_latents)
-    loss_vals = lrlm.fit(X,Y, n_epochs=100000, 1e-5)
+    loss_vals = lrlm.fit(X,Y, n_epochs=100000, lr=1e-5)
 
     # predict T2ms for test data (1951 - 2010)
     X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
