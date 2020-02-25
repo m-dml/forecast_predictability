@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from predictability_utils.utils import viz, helpers
 import matplotlib.pyplot as plt
 
-def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None):
+def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None,
+             n_epochs=10000, lr=1e-4):
 
     T = source_data.shape[0]
     assert T == target_data.shape[0]
@@ -18,7 +19,7 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
     # fit CCA-based model
     lrlm = LR_lin_method(n_latents=n_latents)
-    loss_vals = lrlm.fit(X,Y, n_epochs=100000, lr=1e-5)
+    loss_vals = lrlm.fit(X,Y, n_epochs=n_epochs, lr=lr)
 
     # predict T2ms for test data (1951 - 2010)
     X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
