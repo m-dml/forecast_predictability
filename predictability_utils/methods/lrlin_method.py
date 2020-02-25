@@ -3,6 +3,45 @@ from sklearn.decomposition import PCA
 import torch
 import torch.nn.functional as F
 
+from predictability_utils.utils import viz, helpers
+import matplotlib.pyplot as plt
+
+def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None):
+
+    T = source_data.shape[0]
+    assert T == target_data.shape[0]
+    idx_source_train, idx_target_train, idx_source_test, idx_target_test = idcs
+
+    # predict T2ms in Summer from soil moisture levels in Spring
+    X = torch.tensor(source_data.reshape(T, -1)[idx_source_train,:].mean(axis=0))
+    Y = torch.tensor(target_data.reshape(T, -1)[idx_target_train,:].mean(axis=0))
+
+    # fit CCA-based model
+    lrlm = LR_lin_method(n_latents=n_latents)
+    loss_vals = lrlm.fit(X,Y, n_epochs=3000)
+
+    # predict T2ms for test data (1951 - 2010)
+    X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
+    out_pred = lrlm.predict(X_f)
+
+    # evaluate prediction performance
+    out_true = target_data.reshape(T, -1)[idx_target_test,:].mean(axis=0)
+    anomaly_corrs = helpers.compute_anomaly_corrs(out_true, out_pred)
+
+    # visualize anomaly correlations and loss curve during training
+    if if_plot:
+
+        viz.visualize_anomaly_corrs(anomaly_corrs.reshape(*map_shape))
+
+        plt.semilogx(loss_vals[100:])
+        plt.title('loss curve')
+        plt.show()
+
+    params = {'U' : lrlm._U.detach().numpy(), 'V': lrlm._V.detach().numpy() }
+
+    return anomaly_corrs, params
+
+
 class LR_lin_method():
     
     def __init__(self, n_latents):

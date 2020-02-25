@@ -1,6 +1,39 @@
 import numpy as np
 from sklearn.cross_decomposition import CCA
 
+from predictability_utils.utils import viz, helpers
+import matplotlib.pyplot as plt
+
+def run_cca(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None):
+
+    T = source_data.shape[0]
+    assert T == target_data.shape[0]
+    idx_source_train, idx_target_train, idx_source_test, idx_target_test = idcs
+
+    # predict T2ms in Summer from soil moisture levels in Spring (1900 - 1950)
+    X = source_data.reshape(T, -1)[idx_source_train,:].mean(axis=0)
+    Y = target_data.reshape(T, -1)[idx_target_train,:].mean(axis=0)
+
+    # fit CCA-based model
+    ccam = CCA_method(n_latents=n_latents)
+    ccam.fit(X,Y)
+
+    # predict T2ms for test data (1951 - 2010)
+    X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
+    out_pred = ccam.predict(X_f)
+
+    # evaluate prediction performance
+    out_true = target_data.reshape(T, -1)[idx_target_test,:].mean(axis=0)
+    anomaly_corrs = helpers.compute_anomaly_corrs(out_true, out_pred)
+
+    # visualize anomaly correlations
+    if if_plot:
+        viz.visualize_anomaly_corrs(anomaly_corrs.reshape(*map_shape))
+
+    params = {'U' : ccam._cca.y_loadings_, 'V': ccam._cca.x_rotations_, 'Q': ccam._Q }
+
+    return anomaly_corrs, params
+
 class CCA_method():
 
     def __init__(self, n_latents):
