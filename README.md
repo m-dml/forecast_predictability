@@ -2,11 +2,11 @@
 
 ## Instructions: 
 
-Download repository with `git clone https://github.com/mnonnenm/seasonal_forcast_predictability.git`
+Download repository with `git clone https://github.com/mnonnenm/forecast_predictability.git`
 
 Move to folder 
 ```
-cd path_to_folder/seasonal_forcast_predictability
+cd path_to_folder/forecast_predictability
 ``` 
 and install via 
 ```
