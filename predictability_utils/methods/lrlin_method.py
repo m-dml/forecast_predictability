@@ -3,11 +3,21 @@ from sklearn.decomposition import PCA
 import torch
 import torch.nn.functional as F
 
+from torch.utils import data
+from torch import optim
+from torch.utils.data.sampler import SubsetRandomSampler
+
 from predictability_utils.utils import viz, helpers
 import matplotlib.pyplot as plt
 
+
+def default_device():
+    """gets default device from a test tensor"""
+    return torch.ones((1,)).device
+
+
 def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None,
-             n_epochs=10000, lr=1e-4):
+             n_epochs=10000, lr=1e-4, batch_size=None):
 
     T = source_data.shape[0]
     assert T == target_data.shape[0]
@@ -19,7 +29,7 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
     # fit CCA-based model
     lrlm = LR_lin_method(n_latents=n_latents)
-    loss_vals = lrlm.fit(X,Y, n_epochs=n_epochs, lr=lr)
+    loss_vals = lrlm.fit(X,Y, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
 
     # predict T2ms for test data (1951 - 2010)
     X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
@@ -45,12 +55,15 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
 class LR_lin_method():
     
-    def __init__(self, n_latents):
+    def __init__(self, n_latents, device=None):
 
         self._n_latents = n_latents
         self._U, self.V = None, None
+        self._device = default_device() if device is None else device
+        
+    def fit(self, X, Y, lr=1e-2, n_epochs=2000, batch_size=None):
 
-    def fit(self, X, Y, lr=1e-2, n_epochs=2000):
+        batch_size = X.shape[0] if batch_size is None else batch_size
         
         # initialize guesses for V,U from PCA of respective X,Y spaces
         V_init = PCA(n_components=self._n_latents).fit(X).components_
@@ -61,6 +74,7 @@ class LR_lin_method():
         self._V = torch.tensor(V_init.T, requires_grad=True, dtype=torch.float32)
 
         loss_vals = np.zeros(n_epochs)
+        """
         for epoch in range(n_epochs):
 
             Ypred = torch.mm(torch.mm(X, self._V), self._U) 
@@ -76,6 +90,36 @@ class LR_lin_method():
 
             self._U.grad.zero_()
             self._V.grad.zero_()
+        """
+        
+        dataset = data.TensorDataset(X, Y)
+        parameters = (self._U, self._V)
+
+        # create minibatch loader using a subset sampler
+        train_loader = data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            drop_last=True,
+            sampler=SubsetRandomSampler(np.arange(X.shape[0])),
+        )
+        optimizer, epochs = optim.Adam(parameters, lr=lr), 0
+        for epoch in range(n_epochs):
+
+            # Train for a single epoch.
+            for batch in train_loader:
+                optimizer.zero_grad()
+
+                Ypred = torch.mm(torch.mm(batch[0].to(self._device), self._V), self._U) 
+                sq_froebenius = F.mse_loss(Ypred, batch[1].to(self._device), reduction='none')
+                sq_froebenius = torch.sum(sq_froebenius, axis=1)
+                loss = sq_froebenius.mean()
+                loss.backward()
+                #clip_grad_norm_(parameters, max_norm=5.0)
+                optimizer.step()
+
+                loss_vals[epoch] = loss.detach().numpy()                
+
+            epochs += 1        
 
         return loss_vals
 
