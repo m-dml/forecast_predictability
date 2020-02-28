@@ -44,7 +44,7 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
         viz.visualize_anomaly_corrs(anomaly_corrs.reshape(*map_shape))
 
-        plt.semilogx(loss_vals[100:])
+        plt.semilogx(loss_vals[np.min((100, np.max((n_epochs-100, 0)))):])
         plt.title('loss curve')
         plt.show()
 
