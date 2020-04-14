@@ -8,19 +8,15 @@ def compute_anomaly_corrs(out_true, out_pred):
         
     return anomaly_corrs
 
-def split_train_data(ts, y_train, train_months, test_months):
-    y_total = len(ts)//12
-    m_train = y_train * 12
+def split_train_data(train_months, test_months, train_years, test_years):
 
-    idx_target_train = np.zeros((len(train_months), y_train), dtype=np.int)
-    idx_source_train = np.zeros((len(train_months), y_train), dtype=np.int)
-    idx_target_test = np.zeros((len(test_months), y_total - y_train), dtype=np.int)
-    idx_source_test = np.zeros((len(test_months), y_total - y_train), dtype=np.int)
-    for i,m in enumerate(train_months):
-        idx_source_train[i,:] = np.arange(m, m_train, 12)
-        idx_source_test[i,:]  = np.arange(m_train+m,  len(ts), 12)
-    for i,m in enumerate(test_months):
-        idx_target_train[i,:] = np.arange(m, m_train, 12)
-        idx_target_test[i,:]  = np.arange(m_train+m,  len(ts), 12)
+    def make_idx(months, years): # based on simple broadcasting
+        return np.asarray(months).reshape(-1,1)+(12*np.asarray(years).flatten())
+
+    idx_source_train = make_idx(train_months, train_years)
+    idx_target_train = make_idx(test_months, train_years)
+
+    idx_source_test = make_idx(train_months, test_years)
+    idx_target_test = make_idx(test_months, test_years)
 
     return idx_source_train, idx_target_train, idx_source_test, idx_target_test
