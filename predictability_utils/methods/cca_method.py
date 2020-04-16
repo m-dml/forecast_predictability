@@ -30,7 +30,8 @@ def run_cca(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=
     if if_plot:
         viz.visualize_anomaly_corrs(anomaly_corrs.reshape(*map_shape))
 
-    params = {'U' : ccam._cca.y_loadings_, 'V': ccam._cca.x_rotations_, 'Q': ccam._Q }
+    params = {'U' : ccam._cca.y_loadings_, 'V': ccam._cca.x_rotations_, 'Q': ccam._Q, 
+              'out_pred' : out_pred, 'out_true' : out_true }
 
     return anomaly_corrs, params
 
