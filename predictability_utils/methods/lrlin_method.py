@@ -17,7 +17,7 @@ def default_device():
 
 
 def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shape=None,
-             n_epochs=10000, lr=1e-4, batch_size=None):
+             n_epochs=10000, lr=1e-4, batch_size=None, weight_decay=0., weight_lasso=0.):
 
     T = source_data.shape[0]
     assert T == target_data.shape[0]
@@ -29,7 +29,12 @@ def run_lrlin(source_data, target_data, n_latents, idcs, if_plot=False, map_shap
 
     # fit CCA-based model
     lrlm = LR_lin_method(n_latents=n_latents)
-    loss_vals = lrlm.fit(X,Y, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+    loss_vals = lrlm.fit(X,Y, 
+                         n_epochs=n_epochs, 
+                         lr=lr, 
+                         batch_size=batch_size, 
+                         weight_decay=weight_decay,
+                         weight_lasso=weight_lasso)
 
     # predict T2ms for test data (1951 - 2010)
     X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
@@ -61,7 +66,7 @@ class LR_lin_method():
         self._U, self.V = None, None
         self._device = default_device() if device is None else device
         
-    def fit(self, X, Y, lr=1e-2, n_epochs=2000, batch_size=None):
+    def fit(self, X, Y, lr=1e-2, n_epochs=2000, batch_size=None, weight_decay=0., weight_lasso=0.):
 
         batch_size = X.shape[0] if batch_size is None else batch_size
         
@@ -95,6 +100,14 @@ class LR_lin_method():
         dataset = data.TensorDataset(X, Y)
         parameters = (self._U, self._V)
 
+        if weight_lasso > 0:
+            print('applying lasso regularization')
+            def lasso_reg():
+                return weight_lasso * sum([parameter.norm(p=2) for parameter in parameters])
+        else:
+            def lasso_reg():
+                return 0.
+
         # create minibatch loader using a subset sampler
         train_loader = data.DataLoader(
             dataset,
@@ -102,7 +115,11 @@ class LR_lin_method():
             drop_last=True,
             sampler=SubsetRandomSampler(np.arange(X.shape[0])),
         )
-        optimizer, epochs = optim.Adam(parameters, lr=lr), 0
+        optimizer = optim.Adam(parameters, 
+                               lr=lr, 
+                               weight_decay=weight_decay)
+
+        epochs = 0
         for epoch in range(n_epochs):
 
             # Train for a single epoch.
@@ -112,12 +129,12 @@ class LR_lin_method():
                 Ypred = torch.mm(torch.mm(batch[0].to(self._device), self._V), self._U) 
                 sq_froebenius = F.mse_loss(Ypred, batch[1].to(self._device), reduction='none')
                 sq_froebenius = torch.sum(sq_froebenius, axis=1)
-                loss = sq_froebenius.mean()
+                loss = sq_froebenius.mean() + lasso_reg()
                 loss.backward()
                 #clip_grad_norm_(parameters, max_norm=5.0)
                 optimizer.step()
 
-                loss_vals[epoch] = loss.detach().numpy()                
+                loss_vals[epoch] = loss.detach().numpy()
 
             epochs += 1        
 
