@@ -5,39 +5,41 @@ from sklearn.decomposition import PCA
 from predictability_utils.utils import viz, helpers
 import matplotlib.pyplot as plt
 
-def run_cca(source_data, target_data, n_latents, idcs, n_pca_x=None, n_pca_y=None, if_plot=False, map_shape=None):
+def run_cca(train_years, test_years, source_data, target_data, n_latents, idcs, n_pca_x=None, n_pca_y=None, 
+            if_plot=False, map_shape=None):
 
     T = source_data.shape[0]
     assert T == target_data.shape[0]
     idx_source_train, idx_target_train, idx_source_test, idx_target_test = idcs
 
-    # predict T2ms in Summer from soil moisture levels in Spring (1900 - 1950)
-    X = source_data.reshape(T, -1)[idx_source_train,:].mean(axis=0)
-    Y = target_data.reshape(T, -1)[idx_target_train,:].mean(axis=0)
+    # Training: predict t2m for train data
+    Xd = source_data.reshape(T, -1)[idx_source_train,:].mean(axis=0)
+    Yd = target_data.reshape(T, -1)[idx_target_train,:].mean(axis=0)
 
-    n_pca_x = np.min(X.shape) if n_pca_x is None else n_pca_x
-    n_pca_y = np.min(Y.shape) if n_pca_y is None else n_pca_y
+    # pca decomposition
+    n_pca_x = np.min(Xd.shape) if n_pca_x is None else n_pca_x
+    n_pca_y = np.min(Yd.shape) if n_pca_y is None else n_pca_y
     
     pca_x = PCA(n_components=n_pca_x, copy=True, whiten=False)
     pca_y = PCA(n_components=n_pca_y, copy=True, whiten=False)
     
-    pca_x.fit(X)
-    pca_y.fit(Y)
+    pca_x.fit(Xd)
+    pca_y.fit(Yd)
     
     if n_pca_x < np.min(X.shape):
-        X, A = pca_x.transform(X), pca_x.components_  
+        X, A = pca_x.transform(Xd), pca_x.components_  
     else:
-        X, A = X, None
+        X, A = Xd, None
     if n_pca_y < np.min(Y.shape):
-        Y, B = pca_y.transform(Y), pca_y.components_
+        Y, B = pca_y.transform(Yd), pca_y.components_
     else:
-        Y, B = Y, None
+        Y, B = Yd, None
     
     # fit CCA-based model
     ccam = CCA_method(n_latents=n_latents)
-    ccam.fit(X,Y)
+    UX, VY, UX_ev, VY_ev, UX_cca, VY_cca = ccam.fit(X,Y,Xd,Yd)
 
-    # predict T2ms for test data (1951 - 2010)
+    # Forecasting: predict t2m for test data
     X_f = source_data.reshape(T, -1)[idx_source_test,:].mean(axis=0)
     X_f = pca_x.transform(X_f) if not A is None else X_f
     
@@ -52,8 +54,9 @@ def run_cca(source_data, target_data, n_latents, idcs, n_pca_x=None, n_pca_y=Non
     if if_plot:
         viz.visualize_anomaly_corrs(anomaly_corrs.reshape(*map_shape))
 
-    params = {'U' : ccam._cca.y_loadings_, 'V': ccam._cca.x_rotations_, 'Q': ccam._Q, 
-              'out_pred' : out_pred, 'out_true' : out_true, 'A': A, 'B' : B}
+    params = {'U' : ccam._cca.x_loadings_, 'V': ccam._cca.y_loadings_, 'Q': ccam._Q, 
+              'out_pred' : out_pred, 'out_true' : out_true, 'UX': UX, 'VY': VY,
+             'UX_ev':UX_ev, 'VY_ev':VY_ev, 'UX_cca': UX_cca, 'VY_cca': VY_cca, 'A': A, 'B' : B, 'AX': X, 'BY' : Y}
 
     return anomaly_corrs, params
 
@@ -66,17 +69,33 @@ class CCA_method():
                         scale=False, max_iter=10000, tol=1e-8)
         self._Q = np.eye(self._n_latents)
 
-    def fit(self, X, Y):
+    def fit(self, X, Y, Xd, Yd):
 
         # projections U'X, V'Y such that U'X and V'Y are maximally correlated
         self._cca.fit(X, Y) 
 
         # get time-course of projected data
         UX, VY = self._cca.transform(X, Y)
+        
+        # get cca_x and cca_y spatial patterns
+        UX_inv = np.linalg.pinv(UX); UX_cca = UX_inv.dot(Xd);
+        VY_inv = np.linalg.pinv(VY); VY_cca = VY_inv.dot(Yd);
+        
+        # get explained variance ratio
+        Var_xi, Var_yi = [], []
+ 
+        for i in range(self._n_latents):
+            Var_xi.append(UX[:,i].var()); Var_yi.append(VY[:,i].var());
+        
+        Var_x_sum = np.asarray(Var_xi).sum(); Var_y_sum = np.asarray(Var_yi).sum()
+        UX_ev = (Var_xi)/(Var_x_sum); VY_ev = (Var_yi)/(Var_y_sum)
+
 
         # learn linear regression VY = UX * Q 
         # (Q will be optimal in least-squares sense)
-        self._Q = np.linalg.pinv(UX).dot(VY) 
+        self._Q = np.linalg.pinv(UX).dot(VY)
+        
+        return UX, VY, UX_ev, VY_ev, UX_cca, VY_cca
 
     def predict(self, X):
 
