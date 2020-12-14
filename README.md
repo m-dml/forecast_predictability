@@ -14,4 +14,4 @@ python setup.py develop
 ```
 ('develop' mode is suggested for the moment).
 
-Download the data (ftp://ftp.hzg.de/outgoing/Pyrina/) and place it in folder `path_to_folder/data`, or adjust the `root_data`  paths manually (e.g. in notebooks/playground.ipynb). 
+Download the data (links given in manuscript) and place it in folder `path_to_folder/data`, or adjust the `root_data`  paths manually (e.g. in notebooks/playground.ipynb). 
