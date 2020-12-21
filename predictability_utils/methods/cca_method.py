@@ -5,7 +5,7 @@ from sklearn.decomposition import PCA
 from predictability_utils.utils import viz, helpers
 import matplotlib.pyplot as plt
 
-def run_cca(train_years, test_years, source_data, target_data, n_latents, idcs, n_pca_x=None, n_pca_y=None, 
+def run_cca(source_data, target_data, n_latents, idcs, n_pca_x=None, n_pca_y=None, 
             if_plot=False, map_shape=None):
 
     T = source_data.shape[0]
