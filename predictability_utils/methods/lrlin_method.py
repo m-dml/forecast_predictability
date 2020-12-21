@@ -16,7 +16,7 @@ def default_device():
     return torch.ones((1,)).device
 
 
-def run_lrlin(train_years, test_years, source_data, target_data, n_pca_x, n_pca_y, n_latents, idcs, n_epochs, lr,
+def run_lrlin(source_data, target_data, n_pca_x, n_pca_y, n_latents, idcs, n_epochs, lr,
               if_plot=False, map_shape=None, batch_size=None, weight_decay=0., weight_lasso=0.):
 
     T = source_data.shape[0]
